@@ -1,0 +1,129 @@
+---
+title: "Activity: Popular Names"
+author: "Eli Freedman"
+date: "10-5-2021"
+output: html_notebook
+---
+
+
+
+# Set Up
+
+```{r}
+# load necessary packages
+library(tidyverse)
+library(mosaic)
+library(dcData)
+```
+
+
+```{r}
+# Load the BabyNames data into RStudio environment (from dcData package)
+data("BabyNames")
+
+```
+
+# Activity
+
+**Goal**: By the end of the activity, each person will create a graph showing ups and downs in the popularity of four names according to the U.S. social security administration  
+
+
+### Step 1
+
+Eli
+```{r}
+numGender <-
+  BabyNames %>%
+  filter(sex == 'M') %>%
+  summarise(numMales = n())
+
+numName <-
+  BabyNames %>%
+  filter(sex == 'M', name == 'Eli') %>%
+  summarise(numEli = sum(count))
+
+numGender
+numName
+```
+
+Mary
+```{r}
+numGender <-
+  BabyNames %>%
+  filter(sex == 'F') %>%
+  summarise(numFemales = n())
+
+numName <-
+  BabyNames %>%
+  filter(sex == 'F', name == 'Mary') %>%
+  summarise(numMary = sum(count))
+
+numGender
+numName
+```
+
+Sue
+```{r}
+numGender <-
+  BabyNames %>%
+  filter(sex == 'F') %>%
+  summarise(numFemales = n())
+
+numName <-
+  BabyNames %>%
+  filter(sex == 'F', name == 'Sue') %>%
+  summarise(numSue = sum(count))
+
+numGender
+numName
+```
+
+John
+```{r}
+numGender <-
+  BabyNames %>%
+  filter(sex == 'M') %>%
+  summarise(numMales = n())
+
+numName <-
+  BabyNames %>%
+  filter(sex == 'M', name == 'John') %>%
+  summarise(numJohn = sum(count))
+
+numGender
+numName
+```
+
+### Step 3
+
+There are four variables from the raw data table: name, sex, count, and year. Name appears in the graph, however only a few cases are chosen, leaving the majority of the cases out. Sex is left out entirely as it is unimportant when looking at the popularity of a name over time unless the name happens to be unisex (meaning it is frequently used by both genders). Count and year are obviously included because they encompass the x and y axis and without them the graph would not exist.
+
+The only variable to be transformed is the name variable because the variable was filtered to only include selected names. Other than name, sex is completely removed, count in included fully, and year is included fully.
+
+### Step 4
+
+Yes, the cases that are not Abraham, Franklin, or Woodrow have been filtered out.
+
+Yes, because the graph does not distinguish sex, it is possible that both males and females with the names Abraham, Franklin, and Woodrow were all counted together.
+
+Yes, there are two new variables. The color of the line as well as the line pattern are the two new variables. These two variables are only included in order to distinguish cases from one another and have no other purpose.
+
+### Step 5
+
+First, I have to select the data table in which I would like to wrangle, BabyNames. Then, I used 'select' to choose the variables name, count, and year to be included in my new data frame. I then used 'group_by' to make sure each of the names in the table are put together so it can be easily viewed (this is useful for the programmer). Next, I used 'filter' to select the names in which I am interested in to include. Finally, I used 'summarise' to remove the case number from each of the cases in the data frame. This leaves me with a new data frame consisting of the variables name, count, and year, and only the cases Eli, Mary, Sue, and John.
+
+### Step 7: modify the starter code given in the book to produce your own R code..
+  
+```{r}
+GlyphReadyForm <-
+  BabyNames %>%
+  select(name, count, year) %>%
+  group_by(name) %>%
+  filter(name == 'Eli' | name == 'Mary' | name == 'Sue' | name == 'John') %>%
+  summarise(name, count, year)
+
+GlyphReadyForm %>% 
+  ggplot(aes(x = year, y = count, group = name)) +
+  geom_line( size = 1, alpha = 0.5, aes(color = name)) +
+  ylab("Popularity") + xlab("Year")
+```

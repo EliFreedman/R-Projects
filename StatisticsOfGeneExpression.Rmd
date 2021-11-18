@@ -1,0 +1,202 @@
+---
+title: "Activity: Statistics of Gene Expression"
+author: "Eli Freedman"
+date: "11/9/2021"
+output: html_notebook
+---
+
+# Set Up
+
+### Clean up environment and load packages
+
+Here, I call all the libraries I know I will need throughout this activity.
+
+```{r}
+# clean up the RStudio environment
+rm(list = ls())
+
+# load all packages here
+library(tidyverse)
+library(mosaic)
+library(dcData)
+library(DataComputing)
+```
+
+# 18.1
+
+### Set Up Data Frames
+
+Here, I set up the data frames. I also call the `SummaryStats` and utilize ggplot to create a bar graph.
+
+```{r}
+Narrow <-
+  NCI60 %>%
+  tidyr::pivot_longer(cols = -Probe, names_to = "cellLine", values_to = "expression")
+
+CellTypes <-
+  NCI60cells %>%
+  select(cellLine, tissue) %>%
+  mutate(cellLine = gsub(pattern = "\\:", replacement = ".", x = as.character(cellLine)))
+
+Narrow <- 
+  Narrow %>%
+  inner_join(CellTypes)
+
+Probe_TOP3A <-
+  Narrow %>%
+  filter(Probe == "TOP3A")
+
+SummaryStats <-
+  Probe_TOP3A %>%
+  group_by(tissue) %>%
+  summarise(mn_expr = exp(mean(expression, na.rm = TRUE)))
+
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = mn_expr)) +
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+# 18.2
+
+Here, I call `Probe_TOP3A` to create a scatter plot.
+
+```{r}
+Probe_TOP3A %>% 
+ggplot(aes(x = tissue, y = exp(expression))) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+# 18.3
+
+Here, I alter `SummaryStats` and then create an overlapping bar graph and scatter plot.
+
+```{r}
+SummaryStats <-
+  Probe_TOP3A %>%
+  group_by(tissue) %>%
+  summarise(mn_expr = mean(expression,  na.rm = TRUE),
+            se = sd(expression, na.rm = TRUE) / sqrt(n())) 
+
+SummaryStats %>% 
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_bar(stat = "identity", fill = "gray", color = NA) +
+  geom_point(data = Probe_TOP3A, aes(x = tissue, y = exp(expression))) + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+# 18.4
+
+Here, I alter `SummaryStats` again, and then create an overlapping bar graph and error bar.
+
+```{r}
+SummaryStats <- 
+  SummaryStats %>%
+  mutate(top = mn_expr + 2 * se,
+         bottom = mn_expr - 2 * se) 
+SummaryStats %>%
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_bar(stat = "identity", alpha = 0.2) +
+  geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5) +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+```
+
+# 18.5
+
+Here, I call `SummaryStats` and `Probe_TOP3A` to create an overlapping scatter plot and error bar.
+
+```{r}
+SummaryStats %>%
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_point(data = Probe_TOP3A, aes(x = tissue, y = exp(expression))) +
+  geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5)
+```
+
+# 18.6
+
+Here, I create the `r2`, `ProbeR2`, and `Actual` data tables. I then use `Actual` to create a scatter plot.
+
+```{r}
+r2 <- function(data) {
+  mosaic::rsquared(lm(data$expression ~ data$tissue))
+}
+
+ProbeR2 <- 
+  Narrow %>% 
+  group_by(Probe) %>%
+  dplyr::do(probe_rsq = r2(.)) %>%
+  mutate(r2 = unlist(probe_rsq))
+
+Actual <-
+  ProbeR2 %>%
+  arrange(desc(r2)) %>%
+  head(30) 
+
+Actual %>%
+  ggplot(aes(x = reorder(Probe, desc(r2)), y = r2)) +
+  geom_point() + 
+  xlab("Probe") + 
+  ylab("R-squared") + 
+  ggtitle("Probes with large R-squared for expression level explained by tissue type") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Here, I specify the Probe with the highest R^2 value: A_23_P61317. After plotting it, I can see that it has a lower expression value compared to the graph in 18.5.
+
+```{r}
+Probe_A_23_P61317 <-
+  Narrow %>%
+  filter(Probe == 'A_23_P61317')
+
+SummaryStats %>%
+  ggplot(aes(x = tissue, y = exp(mn_expr))) +
+  geom_point(data = Probe_A_23_P61317, aes(x = tissue, y = exp(expression))) +
+  geom_errorbar(aes(x = tissue, 
+                    ymax = exp(top), 
+                    ymin = exp(bottom)), width = 0.5)
+```
+
+# 18.7
+
+Here, I create a new data frame, `NullR2`, and create two overlapping density graphics, one of `ProbeR2` and one of `NullR2`.
+
+```{r}
+NullR2 <-
+  Narrow %>%
+  group_by(Probe) %>%
+  mutate(expression = mosaic::shuffle(expression)) %>%
+  group_by(Probe) %>%
+  do(r2 = r2(.)) %>%
+  mutate(r2 = unlist(r2))
+
+ProbeR2 %>%
+  ggplot(aes(x = r2)) + 
+  geom_density(fill = "gray30", color = NA) +
+  geom_density(data = NullR2, aes(x = r2), 
+               fill = "gray80", alpha = .75, color = NA)
+```
+
+# 18.8
+
+Here, I create the `Null` data frame, and then append it to the `Actual` data frame. I then create two overlapping scatter plots which describe the R^2 values of the Probes in the new `Actual` data frame.
+
+```{r}
+Null <-
+  NullR2 %>% 
+  arrange(desc(r2)) %>%
+  head(30) 
+
+# append the 30 highest `Null` values to the `Actual` data
+Actual$null <- Null$r2
+
+Actual %>%
+  ggplot(aes(x = reorder(Probe, desc(r2)), y = r2)) +
+  geom_point() + 
+  geom_point(aes(y = null), color = "gray50") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```

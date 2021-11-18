@@ -1,0 +1,160 @@
+---
+title: "Activity: Scraping Nuclear Reactors"
+author: "Eli Freedman"
+date: "11/2/2021"
+output: html_document
+---
+
+# Set Up
+
+
+### Clean up environment and load packages
+
+Here, I call all the libraries I know I will need throughout this activity.
+
+```{r}
+# clean up the RStudio environment
+rm(list = ls())
+
+# load all packages here
+library(tidyverse)
+library(rvest)
+library(mosaic)
+library(dcData)
+library(DataComputing)
+```
+
+### Data Intake
+
+Here, I load the data sets from Wikipedia into RStudio.
+
+```{r}
+page <- "http://en.wikipedia.org/wiki/List_of_nuclear_reactors"
+tableList <- page %>%
+  read_html() %>%
+  html_nodes(css = "table") %>%
+  html_table(fill = TRUE)
+```
+
+### Attribute data table to an object
+
+Here, I load the data table from Wikipedia into a new object called `Japan`.
+
+```{r}
+Japan <- tableList[[22]]
+```
+
+### In what ways is the table tidy? How is it not tidy? What’s different about it from a tidy table?
+
+The data table above has both tidy and untidy aspects. It is tidy because each column has one particular variable. The table is untidy because the first row is actually just describing the variable names, it is not a case. Additionally, some of the variables have multiple/incorrect data types. This is different from a tidy table because a tidy table is complete in having each variable (column) representing one data type, and each case (row) representing one and only one case.
+
+### Tidy the data (Part 1)
+
+Here, I tidy the `Japan` data table by removing the incorrect first case in the table. I also rename the variables to names that are easier to work with.
+
+```{r}
+names(Japan)[c(3,7)] <- c("type", "grossMW")
+
+Japan <-
+  Japan %>%
+  filter(row_number() > 1) %>%
+  rename(name = Name, 
+         reactor = `UnitNo.`,
+         model = Reactor,
+         status = Status, 
+         netMW = `Capacity in MW`,
+         construction = `Construction start`,
+         operation = `Commercial operation`, 
+         closure = Closure)
+```
+
+### Inspect the data
+
+Here, I inspect the data to see what else still needs to be tidied.
+
+```{r}
+str(Japan)
+```
+
+### Tidy the data (Part 2)
+
+Here, I continue to tidy the data by changing each of the variable types into their proper type. For example, reactor was changed from `chr` to `int` because '1' represents an integer and not a character in this context.
+
+```{r}
+Japan <-
+  Japan %>%
+  mutate(reactor = as.integer(reactor),
+         netMW = as.integer(netMW),
+         grossMW = as.integer(grossMW),
+         construction = lubridate::dmy(construction),
+         operation = lubridate::dmy(operation),
+         closure = lubridate::dmy(closure))
+```
+
+### Plot the net generation capacity versus the date of construction
+
+Here, I can see that the average net generation capacity has increased over time. I can also see that GCR generally has the lowest net generation capacity versus BWR which generally has the highest net generation capacity.
+
+```{r}
+ggplot(data = Japan, mapping = aes(x = construction, y = netMW, color = type)) +
+  geom_point()
+```
+
+### Attribute data table to an object
+
+Here, I load the data table from Wikipedia into a new object called `China`.
+
+```{r}
+China <- tableList[[10]]
+```
+
+### Tidy the data
+
+Here, I tidy the `China` data table by removing the incorrect first case in the table. I also rename the variables to names that are easier to work with. Additionally, I tidy the data by changing each of the variable types into their proper type.
+
+```{r}
+names(China)[c(3,7)] <- c("type", "grossMW")
+
+China <-
+  China %>%
+  filter(row_number() > 1) %>%
+  rename(name = Name, 
+         reactor = `UnitNo.`,
+         model = Reactor,
+         status = Status, 
+         netMW = `Capacity in MW`,
+         construction = `Construction start`,
+         operation = `Commercial operation`, 
+         closure = Closure) %>%
+  mutate(reactor = as.integer(reactor),
+         netMW = as.integer(netMW),
+         grossMW = as.integer(grossMW),
+         construction = lubridate::dmy(construction),
+         operation = lubridate::dmy(operation),
+         closure = lubridate::dmy(closure))
+```
+
+### Append `Japan` and `China` into one data set
+
+Here, I add a new variable to both the `Japan` and `China` data set which denotes their country. I then combined these to data tables into a new table that consists of all the nuclear reactors in both countries.
+
+```{r}
+China <-
+  China %>%
+  mutate(country = 'China')
+
+Japan <-
+  Japan %>%
+  mutate(country = 'Japan')
+
+bind_rows(Japan, China)
+```
+
+### Create an informative graph
+
+Here, I created a graph that shows the start and end time of the construction of each of the nuclear reactors in Japan. It also describes the type of reactor by differentiating the colors.
+
+```{r}
+ggplot(Japan, aes(operation, reactor, color = type)) +
+  geom_segment(aes(x = construction, xend = operation, y = name, yend = name, size = 0.5))
+```

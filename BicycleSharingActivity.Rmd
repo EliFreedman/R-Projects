@@ -1,0 +1,235 @@
+---
+title: "Activity: Bicycle Sharing"
+author: "Eli Freedman"
+date: "10/19/2021"
+output: 
+    html_notebook:
+    fig_height: 6
+    fig_width: 10
+---
+
+
+# Set Up
+
+### Clean up environment and load packages
+
+Here, we call all the libraries we know we will need throughout this activity.
+
+```{r}
+# clean up the RStudio environment 
+rm(list = ls())
+
+# load all packages here: `mosaic`, `tidyverse`, `lubridate`, and all others used
+library(mosaic)
+library(tidyverse)
+library(lubridate)
+```
+
+### Data Intake
+
+The code chunk below loads the data for you, but you should study each line to understand what it's doing.
+
+Here, we load the data sets into RStudio.
+
+```{r}
+### Load the station data set into our RStudio environment as described in the text
+station_url <- "https://mdbeckman.github.io/dcSupplement/data/DC-Stations.csv"
+Stations <- readr::read_csv(station_url)
+
+### Load the station data set into our RStudio environment as described in the text
+
+ data_site <- "https://mdbeckman.github.io/dcSupplement/data/Trips-History-Data-2014-Q4.rds"     # full data with 600k rows (uncomment to use)     
+#data_site <- "https://mdbeckman.github.io/dcSupplement/data/Trips-History-Data-2014-Q4-Small.rds"    # small data with 10k rows 
+
+Trips <- readRDS(gzcon(url(data_site)))
+```
+
+### Always inspect the data tables when you load them
+
+Through the use of `summary()`, we know that there are 5 variables in this data set. We can also see varying statistics on each of the variables, as well as their data type.
+
+```{r}
+#Summary of the `Stations` data set
+summary(Stations)
+```
+
+Here, I can see the same sort of statistics for the `Trips` data set.
+
+```{r}
+#Summary of the `Trips` data set
+summary(Trips)
+```
+
+### Plot check-out times. (reproduce Figure 18.1: Use of shared bicycles over the three months in Q4.)
+
+The use slowly declined throughout these three months.
+
+```{r}
+Trips %>%
+  ggplot(aes(x = sdate)) +
+  geom_density(fill = "gray", color = NA)
+```
+
+# Section: How Long?
+
+Make box & whisker plot showing the distribution of rental duration by client type.  As instructed in the text, make sure you either configure your scale or use a filter to suppress outliers from dictating the axis range.
+
+This is a box and whisker plot that describes the distribution of rental duration (in minutes) by client type. It appears that registered clients actually use the bicycle for less time on average than an unregistered client.
+
+```{r}
+TripsDur <-
+  Trips %>%
+  mutate(dur = as.numeric(edate - sdate))
+
+TripsDur %>%
+  ggplot(aes(x = client, y = dur/60)) +
+  geom_boxplot() +
+  ylim(0, 60)
+```
+
+# Section: When are bikes used?
+
+Note: You'll use several functions that begin with `lubridate::` this means that those functions have come from the `lubridate` R package, which makes it easy to work with dates in R.  The activity template instructed you to load this package already, but you should use Google or the RStudio help to get a sense of the kind of things this package is designed to do.
+
+##### Day of the year (1 to 365)
+
+It appears that bicycles are only rented in the last quarter of the year.
+
+```{r}
+Trips %>%
+  ggplot(aes(x = lubridate::yday(sdate))) +
+  geom_density(fill = 'gray', color = NA) +
+  xlim(1, 365)
+```
+
+##### Day of the week (Sunday to Saturday)
+
+As could be easily predicted, bicycle clients are more frequent in the middle of the day than in the middle of the night. It also appears that they have relatively similar frequency despite the day of the week.
+
+```{r}
+Trips %>%
+  ggplot(aes(x = lubridate::wday(sdate))) +
+  geom_density(fill = 'gray', color = NA)
+```
+
+##### Hour of the day (0 to 24)
+
+Here we can see when the bicycles are frequently rented by hour. The are most commonly rented around 8 am and 5 pm, common work starting and ending hours.
+
+```{r}
+Trips %>%
+  ggplot(aes(x = lubridate::hour(sdate))) +
+  geom_density(fill = 'gray', color = NA) +
+  xlim(0, 24)
+```
+
+##### Minute in the hour (0 to 60)
+
+This graph isn't very useful because there are 60 minutes in every hour, so nearly all the minutes have the same density.
+
+```{r}
+Trips %>%
+  ggplot(aes(x = lubridate::minute(sdate))) +
+  geom_density(fill = 'gray', color = NA) +
+  xlim(0, 60)
+```
+
+### Group the bike rentals by hour, weekday, & client type
+
+Here we can see the number of clients for each hour each weekday, as well as their client status. There are many more registered clients than casual clients.
+
+```{r}
+TripsGroup <-
+  Trips %>%
+  mutate(hour = lubridate::hour(sdate), weekday = lubridate::wday(sdate)) %>%
+  group_by(hour, weekday, client) %>%
+  summarise(count = n())
+
+TripsGroup %>%
+  ggplot(aes(x = hour, y = count, group = weekday, color = weekday)) +
+  geom_line() +
+  facet_grid(~ client)
+```
+
+### Construct a similar plot using density rather than frequency
+
+Here, we can see that the density of both client types are relatively similar. 
+
+```{r}
+TripsGroup %>%
+  ggplot(aes(x = hour, group = weekday, color = weekday)) +
+  geom_density() +
+  facet_grid(~ client)
+```
+
+# Section: How Far?
+
+We want to calculate the distance between stations using the `haversine()` function.  The `source()` function actually runs an R script found at some URL.  Use a web browser to visit this URL and read about the function (it's only a few lines).
+
+Here, we can see that the distance density of `FinalTrips` peaks and slowly falls off at short distances, while the difference in the `SPairsDistances` density is mostly averaged out throughout all distances.
+
+```{r}
+source("https://mdbeckman.github.io/dcSupplement/R/haversine.R")
+
+S1 <-
+  Stations %>%
+  select(name, lat, long) %>%
+  rename(sstation = name)
+
+S2 <-
+  S1 %>%
+  rename(estation = sstation, lat2 = lat, long2 = long)
+
+SPairs <-
+  merge(S1, S2, by = NULL)
+
+SPairsDistances <-
+  SPairs %>%
+  mutate(distance = haversine(lat, long, lat2, long2)) %>%
+  select(sstation, estation, distance)
+
+FinalTrips <-
+  Trips %>%
+  inner_join(SPairsDistances)
+
+ggplot(data = FinalTrips, aes(x = distance)) +
+  geom_density() +
+  geom_density(data = SPairsDistances, aes(x = distance), fill = 'red', color = NA, alpha = 0.2) +
+  xlim(0, 15)
+```
+
+# Section: Mapping the Stations
+
+Here, we can view the locations of each bicycle rental station on an interactive map.
+
+```{r}
+library(leaflet)
+stationMap <-
+  leaflet(Stations) %>%
+  addTiles() %>%
+  addCircleMarkers(radius = 2, color = "red") %>%
+  setView(-77.04, 38.9, zoom = 12)
+
+stationMap
+```
+
+# Section: Long-distance stations (Extra Credit)
+
+```{r}
+medianDistanceRadius <-
+  SPairsDistances %>%
+  select(sstation, distance) %>%
+  group_by(sstation) %>%
+  summarize(mid = median(distance)*1000)
+
+medianDistanceRadius
+
+stationMap2 <-
+  leaflet(Stations) %>%
+  addTiles() %>%
+  addCircleMarkers(radius = 2, color = "red") %>%
+  setView(-77.04, 38.9, zoom = 12) %>%
+  addCircles(radius = ~medianDistanceRadius, color = "blue", opacity = 0.0001)
+
+stationMap2
+```
