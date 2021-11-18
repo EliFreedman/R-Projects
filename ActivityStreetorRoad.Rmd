@@ -1,0 +1,154 @@
+---
+title: "Activity: Street or Road" 
+author: "Eli Freedman"
+date: "11/16/2021"
+output: html_notebook
+---
+
+## Front Matter
+
+```{r}
+# clean up work space environment
+rm(list = ls())
+
+# all packages used for the assignment
+library(tidyverse)
+library(mosaic)
+library(dcData)
+library(DataComputing)
+
+# load all data sets
+download.file(url="https://mdbeckman.github.io/dcSupplement/data/CMS_ProvidersSimple.rds",
+              destfile = "CMS_ProvidersSimple.rds")
+CMS_ProvidersSimple <- readRDS("CMS_ProvidersSimple.rds")
+StreetAddresses <- 
+  readr::read_csv("https://mdbeckman.github.io/dcSupplement/data/street-addresses.csv")
+```
+
+## Pre-Activity Questions
+
+How many addresses can be found in both data sets?
+```{r}
+full_join(CMS_ProvidersSimple, StreetAddresses, by = NULL) %>%
+  summarize(numAddresses = n())
+```
+
+## Problem 18.14
+
+Pull a sample from the larger `StreetAddresses` data set
+```{r}
+StreetAddresses_Sample <-
+  StreetAddresses %>%
+  sample_n(size = 50)
+
+StreetAddresses_Sample
+```
+
+In everyday language, describe a pattern that you think will identify the information you are looking for.
+1. The PO Box cases tend to have a sub string “PO”.
+
+Translate (1) into the form of a regular expression.
+2. The regular expression for “PO” is simply "PO".
+
+Filter to retain the cases that match the expression. Hint: filter() and grepl() are useful for this.
+3. Find some cases that match:
+```{r}
+Matches <- 
+  StreetAddresses_Sample %>%
+  filter(grepl(pattern = "PO", address))
+
+Matches
+```
+
+Filter to retain the cases that do not match the expression.
+4. Find cases that don’t match:
+```{r}
+Dont <- 
+  StreetAddresses_Sample %>%
+  filter(!grepl(pattern = "PO", address))
+
+Dont
+```
+
+Examine the results of (3) and (4) to identify shortcomings in your patterns.
+5. Find any cases in the `Matches` that shouldn’t be there (none so far in the excerpt shown). Find any cases in `Dont` that should have matched, for example we want to try and capture the “NCSU BOX” results among our matches.
+
+Improve or extend the pattern to deal with the mistaken cases.
+6. It looks like “BOX” is a better pattern. Since the box number is wanted, the regex should include an identifier for the number inside extraction parentheses.
+```{r}
+pattern <- "BOX\\s+(\\d+)"
+
+Matches <- 
+  StreetAddresses_Sample %>% 
+  filter(grepl(pattern, address))
+
+Dont <-
+  StreetAddresses_Sample %>%
+  filter(!grepl(pattern, address))
+
+Dont
+```
+
+Repeat until satisfied.
+7. The result seems satisfactory
+
+Put extraction parentheses around the parts of the regular expression that contain the info you want.
+8. Use tidyr::extract() to pull out the part of the pattern identified by extraction parentheses.
+```{r}
+BoxNumbers <- 
+  StreetAddresses_Sample %>%
+  filter(grepl(pattern, address)) %>%
+  tidyr::extract(address, into = "boxnum", regex = pattern)
+
+BoxNumbers
+```
+
+## Problem 18.15
+
+1. Explain each line of code
+```{r}
+pattern <- "(ST|RD|ROAD)"                            #Create a new variable `pattern` which is equal to one of the three of the following strings: 'ST', 'RD', or 'ROAD'
+LeftOvers <-                                         #Create a new data frame `LeftOvers` which is equal to the remaining commands
+  StreetAddresses %>%                                #Loads the `Addresses` data set (I named this `StreetAddresses`)
+  filter( !grepl(pattern, address),                  #Filters for cases that do not contain the pattern
+          !grepl("\\sAPT|UNIT\\s[\\d]+$", address),  #Filters for cases that do not contain 'APT' or 'UNIT'
+          !grepl(" BOX ", address)                   #Filters for cases that do not contain 'BOX'
+          )                                          #End of Filter
+LeftOvers                                            #Call the data frame `LeftOvers`
+```
+
+2. Expand to match at least 12 patterns
+```{r}
+pattern_new <- "(ST|RD|ROAD|LN|LANE|CIR|WAY|TRAIL|DR|DRIVE|AVE|CT|COURT|BLVD|POINT|PL|PLACE|PATH)"
+LeftOvers_new <-
+  StreetAddresses %>%
+  filter(!grepl(pattern_new, address),
+         !grepl("\\sAPT|UNIT\\s[\\d]+$", address),
+         !grepl(" BOX ", address)
+         )
+LeftOvers_new
+```
+
+3. Provide a table in descending order of popularity for the street name identifiers
+```{r}
+popularIdentifiers <-
+  full_join(CMS_ProvidersSimple, StreetAddresses, by = 'address') %>%
+  summarize(address) %>%
+  filter(grepl(pattern_new, address)) %>%
+  tidyr::extract(address, into = "identifier", regex = pattern_new) %>%
+  group_by(identifier) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+popularIdentifiers
+```
+
+4. Construct a bar chart for the previous exercise
+```{r}
+options(scipen = 100) #Remove scientific notation
+
+ggplot(data = popularIdentifiers, aes(x = reorder(identifier, -count), y = count)) +
+  geom_bar(stat = 'identity')
+```
+
+5. It appears that in the joined data frame of `CMS_ProvidersSimple` and `StreetAddresses`, the most popular street ending (by far) is 'ST'. The least common street ending is 'PATH'.
